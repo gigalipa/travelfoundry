@@ -123,6 +123,57 @@ export default function App() {
     }
   };
 
+  const handleExportTrip = (trip: TripData) => {
+    try {
+      const dataStr = JSON.stringify(trip, null, 2);
+      const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+      const exportFileDefaultName = `${trip.tripName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_itinerary.json`;
+
+      const linkElement = document.createElement('a');
+      linkElement.setAttribute('href', dataUri);
+      linkElement.setAttribute('download', exportFileDefaultName);
+      linkElement.click();
+      
+      toast.success('Itinerario exportado correctamente');
+    } catch (error) {
+      toast.error('Error al exportar el itinerario');
+    }
+  };
+
+  const handleImportTrip = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const content = e.target?.result as string;
+        const importedTrip = JSON.parse(content) as TripData;
+
+        if (!importedTrip.tripName || !importedTrip.destination || !importedTrip.days) {
+          throw new Error('El archivo no tiene un formato válido de itinerario.');
+        }
+
+        await saveTrip(importedTrip);
+        const newId = getTripId(importedTrip);
+        setCurrentTripId(newId);
+        setSelectedDayId(importedTrip.days[0]?.id ?? '');
+        setShowForm(false);
+        setSidebarOpen(false);
+        
+        toast.success('Itinerario importado correctamente');
+      } catch (error) {
+        toast.error('Error al importar el itinerario', {
+          description: (error as Error).message,
+        });
+      }
+    };
+    reader.readAsText(file);
+    
+    // Reset file input
+    event.target.value = '';
+  };
+
   const scrollToContent = useCallback(() => {
     contentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
@@ -168,6 +219,7 @@ export default function App() {
         currentTripId={currentTripId}
         onSelectTrip={handleSelectTrip}
         onNewTrip={handleNewTrip}
+        onImportTrip={handleImportTrip}
         onDeleteTrip={handleDeleteTrip}
         isOpen={sidebarOpen}
       />
@@ -193,7 +245,11 @@ export default function App() {
           ) : currentTrip ? (
             <>
               {/* Hero */}
-              <HeroSection trip={currentTrip} onExplore={scrollToContent} />
+              <HeroSection 
+                trip={currentTrip} 
+                onExplore={scrollToContent} 
+                onExport={() => handleExportTrip(currentTrip)}
+              />
 
               {/* Main content area */}
               <div ref={contentRef} className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-8 md:py-12">

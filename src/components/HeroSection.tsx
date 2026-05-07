@@ -1,13 +1,14 @@
 import { motion } from 'framer-motion';
-import { MapPin, Calendar, ChevronDown } from 'lucide-react';
+import { MapPin, Calendar, ChevronDown, Download } from 'lucide-react';
 import type { TripData } from '@/data/itinerary';
 
 interface HeroSectionProps {
   onExplore: () => void;
+  onExport: () => void;
   trip: TripData;
 }
 
-export function HeroSection({ onExplore, trip }: HeroSectionProps) {
+export function HeroSection({ onExplore, onExport, trip }: HeroSectionProps) {
   const startDate = new Date(trip.startDate);
   const endDate = new Date(trip.endDate);
   const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
@@ -24,6 +25,18 @@ export function HeroSection({ onExplore, trip }: HeroSectionProps) {
         style={{ backgroundImage: `url(${trip.heroImage || '/images/hero-paris.jpg'})` }}
       />
       <div className="absolute inset-0 bg-gradient-to-b from-midnight/60 via-midnight/40 to-midnight/80" />
+
+      {/* Export Button */}
+      <div className="absolute top-6 right-6 z-20">
+        <button
+          onClick={onExport}
+          className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl backdrop-blur-md transition-all border border-white/20 shadow-soft"
+          title="Exportar Itinerario"
+        >
+          <Download className="w-4 h-4" />
+          <span className="text-sm font-medium hidden sm:inline">Exportar</span>
+        </button>
+      </div>
 
       <div className="relative z-10 h-full flex flex-col justify-center items-center text-center px-6">
         <motion.div

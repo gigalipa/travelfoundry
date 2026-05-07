@@ -1,4 +1,5 @@
-import { Plus, History, Map as MapIcon, ChevronRight, Trash2 } from 'lucide-react';
+import { useRef } from 'react';
+import { Plus, History, Map as MapIcon, ChevronRight, Trash2, Upload } from 'lucide-react';
 import type { TripData } from '@/data/itinerary';
 import { getTripId } from '@/lib/db';
 import { OnlineStatusBadge } from '@/components/InstallPrompt';
@@ -8,11 +9,13 @@ interface AppSidebarProps {
   currentTripId: string | null;
   onSelectTrip: (tripId: string) => void;
   onNewTrip: () => void;
+  onImportTrip: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onDeleteTrip: (tripId: string) => void;
   isOpen: boolean;
 }
 
-export function AppSidebar({ trips, currentTripId, onSelectTrip, onNewTrip, onDeleteTrip, isOpen }: AppSidebarProps) {
+export function AppSidebar({ trips, currentTripId, onSelectTrip, onNewTrip, onImportTrip, onDeleteTrip, isOpen }: AppSidebarProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   return (
     <div 
       className={`
@@ -86,9 +89,27 @@ export function AppSidebar({ trips, currentTripId, onSelectTrip, onNewTrip, onDe
         </div>
 
         {/* Footer */}
-        <div className="pt-6 mt-6 border-t border-white/10 flex items-center justify-between">
-          <span className="text-white/30 text-xs">TravelAI</span>
-          <OnlineStatusBadge />
+        <div className="pt-6 mt-6 border-t border-white/10 flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <span className="text-white/30 text-xs">TravelAI</span>
+            <OnlineStatusBadge />
+          </div>
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center justify-center gap-2 w-full bg-white/5 hover:bg-white/10 text-white/80 font-medium py-3 rounded-xl transition-all border border-white/10"
+            title="Importar un itinerario desde un archivo JSON"
+          >
+            <Upload className="w-4 h-4" />
+            <span className="text-sm">Importar viaje</span>
+          </button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={onImportTrip}
+            accept=".json"
+            className="hidden"
+          />
         </div>
       </div>
     </div>
