@@ -1,7 +1,5 @@
 import type { TripData } from '../data/itinerary';
 
-const PEXELS_API_KEY = import.meta.env.VITE_PEXELS_API_KEY || '';
-
 /**
  * Descarga una imagen desde una URL y la convierte a Data URL (base64).
  * Si falla (sin conexión, CORS, etc.), retorna la URL original como fallback.
@@ -24,32 +22,23 @@ async function fetchImageAsBase64(url: string): Promise<string> {
 }
 
 /**
- * Busca en Pexels una imagen que coincida con la consulta.
+ * Busca en Pexels una imagen que coincida con la consulta a través de nuestro proxy seguro.
  */
 async function getPexelsImageUrl(
   query: string,
   orientation: 'landscape' | 'square' | 'portrait' = 'landscape',
   size: 'large' | 'medium' = 'medium'
 ): Promise<string | null> {
-  if (!PEXELS_API_KEY) return null;
-
   try {
-    // locale=es-ES ayuda si el itinerario está en español
-    const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=1&orientation=${orientation}&locale=es-ES`;
-    const response = await fetch(url, {
-      headers: {
-        Authorization: PEXELS_API_KEY,
-      },
-    });
+    const url = `/api/search-images?query=${encodeURIComponent(query)}&orientation=${orientation}&size=${size}`;
+    const response = await fetch(url);
 
     if (!response.ok) return null;
 
     const data = await response.json();
-    if (data.photos && data.photos.length > 0) {
-      return size === 'large' ? data.photos[0].src.large : data.photos[0].src.medium;
-    }
+    return data.url || null;
   } catch (err) {
-    console.error('Pexels search failed for query:', query, err);
+    console.error('Proxy search failed for query:', query, err);
   }
 
   return null;

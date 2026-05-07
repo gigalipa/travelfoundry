@@ -9,6 +9,10 @@
   path = "/api/generate-itinerary"
   function = "generate-itinerary"
 
+[[edge_functions]]
+  path = "/api/search-images"
+  function = "search-images"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
