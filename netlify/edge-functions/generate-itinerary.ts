@@ -452,7 +452,6 @@ async function callGemini(model: string, prompt: string) {
         temperature: 0.7,
         maxOutputTokens: MAX_OUTPUT_TOKENS,
         responseMimeType: 'application/json',
-        responseJsonSchema: itineraryResponseSchema,
       },
     }),
   });
@@ -460,6 +459,7 @@ async function callGemini(model: string, prompt: string) {
   const data = (await response.json().catch(() => ({}))) as GeminiResponse;
 
   if (!response.ok) {
+    console.error('Gemini API Error Payload:', JSON.stringify(data.error));
     const message = data.error?.message || `Gemini respondió con HTTP ${response.status}.`;
     throw new HttpError(message, response.status, RETRYABLE_STATUS_CODES.has(response.status));
   }
