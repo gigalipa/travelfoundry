@@ -1,5 +1,7 @@
 import type { TripData } from '../data/itinerary';
 
+const PEXELS_API_KEY = import.meta.env.VITE_PEXELS_API_KEY || '';
+
 /**
  * Descarga una imagen desde una URL y la convierte a Data URL (base64).
  * Si falla (sin conexión, CORS, etc.), retorna la URL original como fallback.
@@ -22,52 +24,108 @@ async function fetchImageAsBase64(url: string): Promise<string> {
 }
 
 /**
+ * Busca en Pexels una imagen que coincida con la consulta.
+ */
+async function getPexelsImageUrl(
+  query: string,
+  orientation: 'landscape' | 'square' | 'portrait' = 'landscape',
+  size: 'large' | 'medium' = 'medium'
+): Promise<string | null> {
+  if (!PEXELS_API_KEY) return null;
+
+  try {
+    // locale=es-ES ayuda si el itinerario está en español
+    const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=1&orientation=${orientation}&locale=es-ES`;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: PEXELS_API_KEY,
+      },
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    if (data.photos && data.photos.length > 0) {
+      return size === 'large' ? data.photos[0].src.large : data.photos[0].src.medium;
+    }
+  } catch (err) {
+    console.error('Pexels search failed for query:', query, err);
+  }
+
+  return null;
+}
+
+/**
  * Busca imágenes representativas para el destino y las actividades,
  * y las convierte a base64 para almacenamiento offline completo.
  */
 export async function populateItineraryImages(itinerary: TripData): Promise<TripData> {
   const updatedItinerary = { ...itinerary };
 
-  // Imagen principal del viaje (Hero)
-  const destinationKeyword = encodeURIComponent(itinerary.destination.split(',')[0].trim());
-  let heroUrl = `https://loremflickr.com/1200/800/${destinationKeyword},landscape`;
+  // 1. Imagen principal del viaje (Hero)
+  const destinationKeyword = itinerary.destination.split(',')[0].trim();
+  let heroUrl = await getPexelsImageUrl(`${destinationKeyword} landmark`, 'landscape', 'large');
 
-  if (itinerary.destination.toLowerCase().includes('paris')) {
+  // Fallback genérico a la ciudad si la búsqueda muy específica falla
+  if (!heroUrl) {
+    heroUrl = await getPexelsImageUrl(destinationKeyword, 'landscape', 'large');
+  }
+
+  // Fallback absoluto si no hay llave de API o falla todo
+  if (!heroUrl) {
     heroUrl = `https://images.unsplash.com/photo-1502602898657-3e91760cbb34?q=80&w=1200&auto=format&fit=crop`;
   }
 
   updatedItinerary.heroImage = await fetchImageAsBase64(heroUrl);
 
-  // Imágenes para actividades (en paralelo para velocidad)
+  // 2. Imágenes para actividades (en paralelo para velocidad)
   const activityPromises: Promise<void>[] = [];
   for (const day of updatedItinerary.days) {
     for (const activity of day.activities) {
-      const keyword = encodeURIComponent(
-        activity.title.split(' ')[0] + ',' + activity.location.split(' ')[0]
-      );
-      const actUrl = `https://loremflickr.com/800/600/${keyword},travel`;
+      // Intentamos con título corto + destino para ser más precisos (ej. "Museo del Louvre Paris")
+      const titleClean = activity.title.split('-')[0].split('(')[0].trim();
+      const query = `${titleClean} ${destinationKeyword}`.trim();
+      
       activityPromises.push(
-        fetchImageAsBase64(actUrl).then((b64) => {
-          activity.image = b64;
+        getPexelsImageUrl(query, 'landscape', 'medium').then(async (url) => {
+          let finalUrl = url;
+          // Si no encuentra, busca solo por la categoría en el destino
+          if (!finalUrl) {
+            finalUrl = await getPexelsImageUrl(`${activity.category} ${destinationKeyword}`, 'landscape', 'medium');
+          }
+          // Si sigue sin encontrar, imagen por defecto
+          if (!finalUrl) {
+            finalUrl = `https://images.unsplash.com/photo-1488085061387-422e29b40080?q=80&w=800&auto=format&fit=crop`;
+          }
+          activity.image = await fetchImageAsBase64(finalUrl);
         })
       );
     }
   }
 
-  // Imágenes para secretos (en paralelo)
+  // 3. Imágenes para secretos (en paralelo)
   const secretPromises: Promise<void>[] = [];
   if (updatedItinerary.secrets) {
     for (const secret of updatedItinerary.secrets) {
-      const keyword = encodeURIComponent(secret.name.split(' ')[0]);
-      const secUrl = `https://loremflickr.com/800/600/${keyword},secret,architecture`;
+      const nameClean = secret.name.split('-')[0].split('(')[0].trim();
+      const query = `${nameClean} ${destinationKeyword}`.trim();
+      
       secretPromises.push(
-        fetchImageAsBase64(secUrl).then((b64) => {
-          secret.image = b64;
+        getPexelsImageUrl(query, 'landscape', 'medium').then(async (url) => {
+          let finalUrl = url;
+          if (!finalUrl) {
+            finalUrl = await getPexelsImageUrl(`${destinationKeyword} secret gem`, 'landscape', 'medium');
+          }
+          if (!finalUrl) {
+            finalUrl = `https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?q=80&w=800&auto=format&fit=crop`;
+          }
+          secret.image = await fetchImageAsBase64(finalUrl);
         })
       );
     }
   }
 
+  // Esperar a que se descarguen/conviertan todas las imágenes
   await Promise.all([...activityPromises, ...secretPromises]);
 
   return updatedItinerary;
