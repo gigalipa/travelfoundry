@@ -74,12 +74,12 @@ type ItineraryModel = {
 
 const DEFAULT_PRIMARY_MODEL: ItineraryModel = { provider: 'gemini', model: 'gemini-2.5-flash' };
 const DEFAULT_FALLBACK_MODELS: ItineraryModel[] = [
-  { provider: 'gemini', model: 'gemini-2.5-flash-lite' },
   { provider: 'gemini', model: 'gemini-flash-latest' },
+  { provider: 'gemini', model: 'gemini-3.1-flash-lite' },
 ];
 const RETRYABLE_STATUS_CODES = new Set([408, 409, 429, 500, 502, 503, 504]);
 const DEFAULT_GEMINI_API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
-const MAX_OUTPUT_TOKENS = 16384;
+const MAX_OUTPUT_TOKENS = 8192;
 
 const activitySchema: JsonSchema = {
   type: 'object',
@@ -543,8 +543,8 @@ async function generateWithRetries(prompt: string) {
   const models = getConfiguredModels();
   let lastError: unknown;
 
-  for (const model of models) {
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (const model of models) {
       try {
         return await callProvider(model, prompt);
       } catch (error) {
@@ -552,13 +552,13 @@ async function generateWithRetries(prompt: string) {
           lastError = error;
         }
 
-        if (isProviderConfigurationError(error)) break;
+        if (isProviderConfigurationError(error)) continue;
 
         const isRetryable = error instanceof HttpError && error.retryable;
-        if (!isRetryable) break;
-        await sleep(450 * 2 ** attempt);
+        if (!isRetryable) continue;
       }
     }
+    await sleep(450 * 2 ** attempt);
   }
 
   if (lastError instanceof HttpError) {
