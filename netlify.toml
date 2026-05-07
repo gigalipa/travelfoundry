@@ -1,0 +1,16 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  SECRETS_SCAN_OMIT_KEYS = "VITE_GEMINI_API_KEY"
+
+[[redirects]]
+  from = "/api/generate-itinerary"
+  to = "/.netlify/functions/generate-itinerary"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
