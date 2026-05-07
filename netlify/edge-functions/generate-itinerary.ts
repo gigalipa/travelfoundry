@@ -1,3 +1,4 @@
+import type { Context } from "@netlify/edge-functions";
 import type { TripData } from '../../src/data/itinerary';
 
 type TripFormData = {
@@ -181,18 +182,17 @@ const itineraryResponseSchema: JsonSchema = {
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function jsonResponse(body: unknown, statusCode = 200) {
-  return {
-    statusCode,
+  return new Response(JSON.stringify(body), {
+    status: statusCode,
     headers: {
       'Content-Type': 'application/json',
       'Cache-Control': 'no-store',
     },
-    body: JSON.stringify(body),
-  };
+  });
 }
 
 function getApiKey() {
-  return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.VITE_GEMINI_API_KEY || '';
+  return Netlify.env.get('GEMINI_API_KEY') || Netlify.env.get('GOOGLE_API_KEY') || Netlify.env.get('VITE_GEMINI_API_KEY') || '';
 }
 
 function trimTrailingSlash(value: string) {
@@ -211,10 +211,10 @@ function parseConfiguredModel(value: string): ItineraryModel {
 }
 
 function getConfiguredModels() {
-  const configuredPrimary = (process.env.AI_ITINERARY_MODEL || process.env.GEMINI_MODEL)?.trim();
-  const configuredFallbacks = (process.env.AI_ITINERARY_FALLBACK_MODELS || process.env.GEMINI_FALLBACK_MODELS)
+  const configuredPrimary = (Netlify.env.get('AI_ITINERARY_MODEL') || Netlify.env.get('GEMINI_MODEL'))?.trim();
+  const configuredFallbacks = (Netlify.env.get('AI_ITINERARY_FALLBACK_MODELS') || Netlify.env.get('GEMINI_FALLBACK_MODELS'))
     ?.split(',')
-    .map((model) => model.trim())
+    .map((model: string) => model.trim())
     .filter(Boolean)
     .map(parseConfiguredModel);
 
@@ -384,28 +384,28 @@ function getGeminiEndpoint(model: string) {
     throw new HttpError('Gemini no está configurado para generar itinerarios.', 500, false);
   }
 
-  const baseUrl = trimTrailingSlash(process.env.GOOGLE_GEMINI_BASE_URL || DEFAULT_GEMINI_API_BASE_URL);
+  const baseUrl = trimTrailingSlash(Netlify.env.get('GOOGLE_GEMINI_BASE_URL') || DEFAULT_GEMINI_API_BASE_URL);
   return `${baseUrl}/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
 }
 
 function getOpenAiEndpoint() {
-  if (process.env.OPENAI_BASE_URL && process.env.OPENAI_API_KEY) {
+  if (Netlify.env.get('OPENAI_BASE_URL') && Netlify.env.get('OPENAI_API_KEY')) {
     return {
-      apiKey: process.env.OPENAI_API_KEY,
-      url: `${trimTrailingSlash(process.env.OPENAI_BASE_URL)}/chat/completions`,
+      apiKey: Netlify.env.get('OPENAI_API_KEY'),
+      url: `${trimTrailingSlash(Netlify.env.get('OPENAI_BASE_URL') as string)}/chat/completions`,
     };
   }
 
-  if (process.env.NETLIFY_AI_GATEWAY_BASE_URL && process.env.NETLIFY_AI_GATEWAY_KEY) {
+  if (Netlify.env.get('NETLIFY_AI_GATEWAY_BASE_URL') && Netlify.env.get('NETLIFY_AI_GATEWAY_KEY')) {
     return {
-      apiKey: process.env.NETLIFY_AI_GATEWAY_KEY,
-      url: `${trimTrailingSlash(process.env.NETLIFY_AI_GATEWAY_BASE_URL)}/openai/v1/chat/completions`,
+      apiKey: Netlify.env.get('NETLIFY_AI_GATEWAY_KEY'),
+      url: `${trimTrailingSlash(Netlify.env.get('NETLIFY_AI_GATEWAY_BASE_URL') as string)}/openai/v1/chat/completions`,
     };
   }
 
-  if (process.env.OPENAI_API_KEY) {
+  if (Netlify.env.get('OPENAI_API_KEY')) {
     return {
-      apiKey: process.env.OPENAI_API_KEY,
+      apiKey: Netlify.env.get('OPENAI_API_KEY'),
       url: 'https://api.openai.com/v1/chat/completions',
     };
   }
@@ -568,17 +568,17 @@ async function generateWithRetries(prompt: string) {
   throw new HttpError('No se pudo generar un itinerario válido con los modelos disponibles.', 502, false);
 }
 
-export async function handler(event: { httpMethod: string; body: string | null }) {
-  if (event.httpMethod === 'OPTIONS') {
+export default async (request: Request, context: Context) => {
+  if (request.method === 'OPTIONS') {
     return jsonResponse({}, 204);
   }
 
-  if (event.httpMethod !== 'POST') {
+  if (request.method !== 'POST') {
     return jsonResponse({ error: 'Método no permitido.' }, 405);
   }
 
   try {
-    const payload = JSON.parse(event.body || '{}') as { formData?: TripFormData };
+    const payload = (await request.json().catch(() => ({}))) as { formData?: TripFormData };
     if (!payload.formData?.destination) {
       return jsonResponse({ error: 'El destino es obligatorio para generar el itinerario.' }, 400);
     }
@@ -598,4 +598,4 @@ export async function handler(event: { httpMethod: string; body: string | null }
 
     return jsonResponse({ error: 'No se pudo generar un itinerario válido. Inténtalo de nuevo.' }, 500);
   }
-}
+};

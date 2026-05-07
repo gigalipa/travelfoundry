@@ -5,10 +5,9 @@
 [build.environment]
   SECRETS_SCAN_OMIT_KEYS = "VITE_GEMINI_API_KEY"
 
-[[redirects]]
-  from = "/api/generate-itinerary"
-  to = "/.netlify/functions/generate-itinerary"
-  status = 200
+[[edge_functions]]
+  path = "/api/generate-itinerary"
+  function = "generate-itinerary"
 
 [[redirects]]
   from = "/*"
